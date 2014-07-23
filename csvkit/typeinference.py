@@ -18,11 +18,11 @@ NULL_TIME = datetime.time(0, 0, 0)
 def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
     """
     Attempts to normalize a list (column) of string values to booleans, integers,
-    floats, dates, times, datetimes, or strings. NAs and missing values are converted 
+    floats, dates, times, datetimes, or strings. NAs and missing values are converted
     to empty strings. Empty strings are converted to nulls in the case of non-string
     types. For string types (unicode), empty strings are converted to nulls unless
     blanks_as_nulls is false.
-    
+
     Optional accepts a "normal_type" argument which specifies a type that the values
     must conform to (rather than inferring). Will raise InvalidValueForTypeException
     if a value is not coercable.
@@ -69,7 +69,7 @@ def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
             return bool, normal_values
         except ValueError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
 
     # Are they integers?
     if not normal_type or normal_type == int:
@@ -81,26 +81,26 @@ def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
                 if x == '' or x is None:
                     append(None)
                     continue
-                
+
                 int_x = int(replace(x, ',', ''))
 
                 if x[0] == '0' and int(x) != 0:
                     raise TypeError('Integer is padded with 0s, so treat it as a string instead.')
-                
+
                 append(int_x)
 
             return int, normal_values
         except TypeError:
             if normal_type == int:
-                raise InvalidValueForTypeException(i, x, int) 
+                raise InvalidValueForTypeException(i, x, int)
 
             if blanks_as_nulls:
                 return unicode, [x if x != '' else None for x in l]
             else:
-                return unicode, l 
+                return unicode, l
         except ValueError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
 
     # Are they floats?
     if not normal_type or normal_type == float:
@@ -117,10 +117,10 @@ def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
 
                 append(float_x)
 
-            return float, normal_values 
+            return float, normal_values
         except ValueError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
 
     # Are they datetimes?
     if not normal_type or normal_type in [datetime.time, datetime.date, datetime.datetime]:
@@ -136,29 +136,32 @@ def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
                     add(NoneType)
                     continue
 
-                d = parse(x, default=DEFAULT_DATETIME)
+                if len(x) < 4:
+                    return unicode, l
+                else:
+                    d = parse(x, default=DEFAULT_DATETIME)
 
                 # Is it only a time?
                 if d.date() == NULL_DATE:
                     if normal_type and normal_type != datetime.time:
-                        raise InvalidValueForTypeException(i, x, normal_type) 
+                        raise InvalidValueForTypeException(i, x, normal_type)
 
                     d = d.time()
                     add(datetime.time)
                 # Is it only a date?
                 elif d.time() == NULL_TIME:
                     if normal_type and normal_type not in [datetime.date, datetime.datetime]:
-                        raise InvalidValueForTypeException(i, x, normal_type) 
+                        raise InvalidValueForTypeException(i, x, normal_type)
 
                     d = d.date()
                     add(datetime.date)
                 # It must be a date and time
                 else:
                     if normal_type and normal_type != datetime.datetime:
-                        raise InvalidValueForTypeException(i, x, normal_type) 
+                        raise InvalidValueForTypeException(i, x, normal_type)
 
                     add(datetime.datetime)
-                
+
                 append(d)
 
             # This case can only happen if normal_type was specified and the column contained all nulls
@@ -177,27 +180,27 @@ def normalize_column_type(l, normal_type=None, blanks_as_nulls=True):
                     normal_types_set.discard(datetime.date)
             # Datetimes and times don't mix -- fallback to using strings
             elif normal_types_set == set([datetime.datetime, datetime.time]) or (normal_types_set == set([datetime.time]) and normal_type is datetime.datetime):
-                raise ValueError('Cant\'t coherently mix datetimes and times in a single column.') 
+                raise ValueError('Cant\'t coherently mix datetimes and times in a single column.')
             # Dates and times don't mix -- fallback to using strings
             elif normal_types_set == set([datetime.date, datetime.time]) or (normal_types_set == set([datetime.time]) and normal_type is datetime.date) or (normal_types_set == set([datetime.date]) and normal_type is datetime.time):
                 raise ValueError('Can\'t coherently mix dates and times in a single column.')
 
-            return normal_types_set.pop(), normal_values 
+            return normal_types_set.pop(), normal_values
         except ValueError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
         except OverflowError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
         except TypeError:
             if normal_type:
-                raise InvalidValueForTypeException(i, x, normal_type) 
+                raise InvalidValueForTypeException(i, x, normal_type)
 
-    # Don't know what they are, so they must just be strings 
+    # Don't know what they are, so they must just be strings
     if blanks_as_nulls:
         return unicode, [x if x != '' else None for x in l]
     else:
-        return unicode, l 
+        return unicode, l
 
 def normalize_table(rows, normal_types=None, accumulate_errors=False, blanks_as_nulls=True):
     """
@@ -235,12 +238,11 @@ def normalize_table(rows, normal_types=None, accumulate_errors=False, blanks_as_
             new_normal_columns.append(c)
         except InvalidValueForTypeException, e:
             if not accumulate_errors:
-                raise                
-        
+                raise
+
             errors[i] = e
-    
+
     if errors:
         raise InvalidValueForTypeListException(errors)
 
     return new_normal_types, new_normal_columns
-
